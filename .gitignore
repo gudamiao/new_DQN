@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# IDE / OS
+.idea/
+*.iml
+.DS_Store
+
+# 训练产物（不要上传）
+outputs/
+*.pth
+*.pt
+*.ckpt
+*.onnx
+*.weights
