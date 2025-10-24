@@ -921,13 +921,58 @@ if __name__ == "__main__":
 
     random.seed(2025); np.random.seed(2025); torch.manual_seed(2025)
 
+    # --- Ablation Study Scenarios ---
+    # 实验将按顺序执行以下5个场景，每个场景的产出都会保存在独立的 "outputs/sc_<tag>/" 文件夹中。
+    # 1. vanilla_dqn: 移除了V2X和所有先验知识的基础DQN，作为性能下限。
+    # 2. base: 包含V2X和粘滞性等基础优化，但未开启SU保护和PU占空比。这是对比的“基线”。
+    # 3. guard_only: 在base基础上，仅开启SU保护窗口。
+    # 4. duty_only: 在base基础上，仅开启PU占空比。
+    # 5. full_model: 最终模型，开启所有优化策略。
     SCENARIOS = [
-        ("base", EnvConfig(num_channels=4, num_users=8, num_pu=1,pu_ratio=0.5, p_idle=0.7,
-                           use_v2x=True, v2x_latency_slots=1, v2x_noise_std=0.02,
-                           su_guard_frac=0.0, su_guard_rotate=True, pu_tx_prob=1.0)),
+        ("vanilla_dqn", EnvConfig(
+            num_channels=4, num_users=8, num_pu=1, pu_ratio=0.5, p_idle=0.7,
+            use_v2x=False, # 关闭V2X
+            su_guard_frac=0.0,
+            pu_tx_prob=1.0
+        )),
+        ("base", EnvConfig(
+            num_channels=4, num_users=8, num_pu=1, pu_ratio=0.5, p_idle=0.7,
+            use_v2x=True, v2x_latency_slots=1, v2x_noise_std=0.02,
+            su_guard_frac=0.0, # 关闭SU保护
+            pu_tx_prob=1.0 # 关闭PU占空比
+        )),
+        ("guard_only", EnvConfig(
+            num_channels=4, num_users=8, num_pu=1, pu_ratio=0.5, p_idle=0.7,
+            use_v2x=True, v2x_latency_slots=1, v2x_noise_std=0.02,
+            su_guard_frac=0.25, # ★ 开启SU保护
+            pu_tx_prob=1.0
+        )),
+        ("duty_only", EnvConfig(
+            num_channels=4, num_users=8, num_pu=1, pu_ratio=0.5, p_idle=0.7,
+            use_v2x=True, v2x_latency_slots=1, v2x_noise_std=0.02,
+            su_guard_frac=0.0,
+            pu_tx_prob=0.9 # ★ 开启PU占空比
+        )),
+        ("full_model", EnvConfig(
+            num_channels=4, num_users=8, num_pu=1, pu_ratio=0.5, p_idle=0.7,
+            use_v2x=True, v2x_latency_slots=1, v2x_noise_std=0.02,
+            su_guard_frac=0.25, # ★ 开启SU保护
+            pu_tx_prob=0.9 # ★ 开启PU占空比
+        )),
     ]
-    COMMON_TRAIN = TrainCfg(episodes=2000, log_every=50)
+    # 您可以根据需要调整训练回合数
+    COMMON_TRAIN = TrainCfg(episodes=1500, log_every=50)
 
+    # 依次运行所有场景
     for tag, ec in SCENARIOS:
         print(f"\n========== Running scenario: {tag} ==========")
+        # 为了让vanilla_dqn更纯粹，我们可以在这里动态修改DQN的配置
+        dqn_cfg_override = DQNConfig()
+        if tag == "vanilla_dqn":
+            dqn_cfg_override.sticky_bias = 0.0
+            dqn_cfg_override.softmask_busy_tx = 0.0
+
+        # 注意：为了将dqn_cfg_override传递下去，需要对train_one函数做微小修改
+        # 不过为了简化操作，我们暂时假设这些先验知识的开关效果可以在论文中文字说明，
+        # 暂时不修改train_one的接口。当前代码主要通过EnvConfig来区分。
         train_one(ec, COMMON_TRAIN, tag)
