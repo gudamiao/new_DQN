@@ -97,7 +97,7 @@ class EnvConfig:
 
     # --- (B) PU 真实尝试占空比 ---
     pu_tx_prob: float = 1.0
-
+    num_su_neighbors: int = 4 # 定义每个SU的邻居数量
 
 @dataclass
 class DQNConfig:
@@ -137,7 +137,7 @@ class DQNConfig:
 
 @dataclass
 class TrainCfg:
-    episodes: int = 2000
+    episodes: int = 1500
     log_every: int = 50
     save_path: str = "dqn_multi_roles.pth"
     best_path: str = "dqn_multi_roles_best.pth"
@@ -322,6 +322,18 @@ class MultiAccessEnv:
 
         return self._obs_all(), rewards.astype(np.float32), bool(done), info
 
+    # 在 MultiAccessEnv 类中添加一个方法
+    def _get_neighbors(self, agent_id: int, num_neighbors: int) -> List[int]:
+        """为指定的agent_id找到邻居。"""
+        su_indices = [i for i, role in enumerate(self.roles) if role == 0 and i != agent_id]
+        if not su_indices:
+            return []
+
+        # 简化策略：随机选择M个其他SU作为邻居
+        # 更高级的策略可以基于模拟的物理位置
+        num_neighbors = min(num_neighbors, len(su_indices))
+        neighbors = self.rng.choice(su_indices, size=num_neighbors, replace=False).tolist()
+        return neighbors
     # helpers
     def _obs_all(self) -> np.ndarray:
         obs_all = []
